@@ -356,7 +356,7 @@ export const ProductReportView: React.FC<ProductReportViewProps> = ({ onNavigate
                 {settings.clinicName || 'NANO CIRCUMCISION CLINIC'}
               </h1>
               <p className="text-xs font-bold text-slate-800">
-                {settings.tagline || 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit'}
+                {(settings.tagline && settings.tagline !== 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit' && settings.tagline !== 'Pusat Sunat Canggih & Modern Tanpa Jahit') ? settings.tagline : 'Sunat Canggih & Modern'}
               </p>
               <p className="text-[11px] text-slate-600 mt-0.5">
                 {settings.address} • Telp/WA: {settings.phone}

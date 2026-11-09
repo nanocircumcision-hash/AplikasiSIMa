@@ -736,7 +736,7 @@ export const FinancialReportView: React.FC = () => {
                   {settings.clinicName || 'NANO CIRCUMCISION'}
                 </h1>
                 <p className="text-xs font-bold text-slate-700">
-                  {settings.tagline || 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit'}
+                  {(settings.tagline && settings.tagline !== 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit' && settings.tagline !== 'Pusat Sunat Canggih & Modern Tanpa Jahit') ? settings.tagline : 'Sunat Canggih & Modern'}
                 </p>
                 <p className="text-[11px] text-slate-500 font-mono mt-0.5">
                   {settings.address} • Telp: {settings.phone}

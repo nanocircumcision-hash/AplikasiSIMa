@@ -443,7 +443,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 CREATE TABLE IF NOT EXISTS public.clinic_settings (
     id SERIAL PRIMARY KEY,
     clinic_name TEXT NOT NULL DEFAULT 'NANO CIRCUMCISION CLINIC',
-    tagline TEXT DEFAULT 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit',
+    tagline TEXT DEFAULT 'Sunat Canggih & Modern',
     address TEXT DEFAULT 'Jl. Kesehatan No. 88, Jakarta Selatan',
     phone TEXT DEFAULT '0812-8888-9999',
     email TEXT DEFAULT 'info@nanocircumcision.com',

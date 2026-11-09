@@ -582,7 +582,7 @@ export const CircumcisionCashierView: React.FC<CircumcisionCashierViewProps> = (
                           {printClinicName}
                         </h2>
                         <p className="text-[11px] font-bold text-sky-800 mt-0.5">
-                          {settings.tagline || 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit'}
+                          {(settings.tagline && settings.tagline !== 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit' && settings.tagline !== 'Pusat Sunat Canggih & Modern Tanpa Jahit') ? settings.tagline : 'Sunat Canggih & Modern'}
                         </p>
                         <p className="text-[10px] text-slate-600 font-mono mt-0.5">
                           {printAddress} • Telp/WA: {printPhone}

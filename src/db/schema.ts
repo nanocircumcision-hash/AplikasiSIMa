@@ -403,7 +403,7 @@ export const auditLogs = pgTable('audit_logs', {
 export const clinicSettings = pgTable('clinic_settings', {
   id: serial('id').primaryKey(),
   clinicName: text('clinic_name').notNull().default('NANO CIRCUMCISION CLINIC'),
-  tagline: text('tagline').default('Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit'),
+  tagline: text('tagline').default('Sunat Canggih & Modern'),
   address: text('address').default('Jl. Kesehatan No. 88, Jakarta Selatan'),
   phone: text('phone').default('0812-8888-9999'),
   email: text('email').default('info@nanocircumcision.com'),

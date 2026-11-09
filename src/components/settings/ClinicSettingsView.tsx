@@ -15,7 +15,7 @@ export const ClinicSettingsView: React.FC = () => {
   
   const [formData, setFormData] = useState({
     clinicName: settings.clinicName || 'NANO CIRCUMCISION CLINIC',
-    tagline: settings.tagline || 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit',
+    tagline: (settings.tagline && settings.tagline !== 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit' && settings.tagline !== 'Pusat Sunat Canggih & Modern Tanpa Jahit') ? settings.tagline : 'Sunat Canggih & Modern',
     address: settings.address || 'Jl. Kesehatan No. 88, Kebayoran Baru, Jakarta Selatan',
     phone: settings.phone || '0812-8888-9999',
     email: settings.email || 'info@nanocircumcision.com',
@@ -31,7 +31,7 @@ export const ClinicSettingsView: React.FC = () => {
     if (settings) {
       setFormData({
         clinicName: settings.clinicName || 'NANO CIRCUMCISION CLINIC',
-        tagline: settings.tagline || 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit',
+        tagline: (settings.tagline && settings.tagline !== 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit' && settings.tagline !== 'Pusat Sunat Canggih & Modern Tanpa Jahit') ? settings.tagline : 'Sunat Canggih & Modern',
         address: settings.address || 'Jl. Kesehatan No. 88, Kebayoran Baru, Jakarta Selatan',
         phone: settings.phone || '0812-8888-9999',
         email: settings.email || 'info@nanocircumcision.com',
@@ -1596,7 +1596,7 @@ ALTER TABLE IF EXISTS "patients" ADD COLUMN IF NOT EXISTS "branch_code" text DEF
                         {formData.clinicName || 'NANO CIRCUMCISION CLINIC'}
                       </h4>
                       <p className="text-[10px] font-bold text-slate-700 mt-0.5 truncate">
-                        {formData.tagline || 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit'}
+                        {formData.tagline || 'Sunat Canggih & Modern'}
                       </p>
                       <p className="text-[9px] text-slate-500 font-mono mt-0.5 truncate">
                         {formData.address || 'Ruko Khayangan Nomor RB-16 Bangkalan'}

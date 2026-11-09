@@ -134,7 +134,7 @@ export const ProductReportPrintModal: React.FC<ProductReportPrintModalProps> = (
 
   const { summary, items, transactions, period } = reportData;
   const clinicName = settings?.clinicName || 'NANO CIRCUMCISION CLINIC';
-  const tagline = settings?.tagline || 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit';
+  const tagline = (settings?.tagline && settings.tagline !== 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit' && settings.tagline !== 'Pusat Sunat Canggih & Modern Tanpa Jahit') ? settings.tagline : 'Sunat Canggih & Modern';
   const address = settings?.address || 'Ruko Khayangan Nomor RB-16 Bangkalan';
   const phone = settings?.phone || '085236069788';
   const printDateStr = new Date().toLocaleDateString('id-ID', {

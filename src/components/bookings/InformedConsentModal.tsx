@@ -51,12 +51,21 @@ export const InformedConsentModal: React.FC<InformedConsentModalProps> = ({
     ? activeMethods.map(m => m.name)
     : (packages && packages.length > 0 ? packages.map(p => p.name) : ['Metode Glans Pro Bipolar Pensealer', 'Metode Tindakan Nano Klemp']);
 
+  const resolveTagline = () => {
+    if (!settings?.tagline || 
+        settings.tagline.includes('Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit') || 
+        settings.tagline.includes('Pusat Sunat Canggih & Modern Tanpa Jahit')) {
+      return 'Sunat Canggih & Modern';
+    }
+    return settings.tagline;
+  };
+
   // Form State initialized from booking, patient, and branch data
   const [formData, setFormData] = useState({
     // Cabang & Kop Surat
     branchCode: initialBranchCode,
     kopClinicName: initialBranch?.name || settings?.clinicName || 'NANO CIRCUMCISION CLINIC',
-    kopTagline: settings?.tagline || 'Pusat Sunat Canggih & Modern Tanpa Jahit',
+    kopTagline: resolveTagline(),
     kopAddress: initialBranch?.address || settings?.address || 'Ruko Khayangan Nomor RB-16 Bangkalan',
     kopPhone: initialBranch?.phone || settings?.phone || '085236069788',
 
@@ -215,7 +224,7 @@ export const InformedConsentModal: React.FC<InformedConsentModalProps> = ({
           {formData.kopClinicName || settings?.clinicName || 'NANO CIRCUMCISION'}
         </h1>
         <h2 className="text-xs font-bold text-slate-800 tracking-wide mt-0.5 uppercase">
-          {formData.kopTagline || settings?.tagline || 'Pusat Sunat Canggih & Modern Tanpa Jahit'}
+          {formData.kopTagline || resolveTagline()}
         </h2>
         <p className="text-[11px] text-slate-600 font-medium mt-0.5">
           {formData.kopAddress || settings?.address || 'Ruko Khayangan Nomor RB-16 Bangkalan'}
@@ -446,6 +455,17 @@ export const InformedConsentModal: React.FC<InformedConsentModalProps> = ({
                     onChange={(e) => setFormData({ ...formData, kopClinicName: e.target.value })}
                     className="w-full px-2.5 py-1.5 bg-white border border-sky-200 rounded-lg text-xs"
                     placeholder="Nama Klinik / Cabang"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Slogan / Tagline di Kop</label>
+                  <input
+                    type="text"
+                    value={formData.kopTagline}
+                    onChange={(e) => setFormData({ ...formData, kopTagline: e.target.value })}
+                    className="w-full px-2.5 py-1.5 bg-white border border-sky-200 rounded-lg text-xs"
+                    placeholder="Contoh: Sunat Canggih & Modern"
                   />
                 </div>
 

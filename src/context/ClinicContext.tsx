@@ -227,7 +227,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [settings, setSettings] = useState<ClinicSettings>({
     clinicName: 'NANO CIRCUMCISION CLINIC',
-    tagline: 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit',
+    tagline: 'Sunat Canggih & Modern',
     address: 'Jl. Kesehatan No. 88, Kebayoran Baru, Jakarta Selatan',
     phone: '0812-8888-9999',
     email: 'info@nanocircumcision.com',

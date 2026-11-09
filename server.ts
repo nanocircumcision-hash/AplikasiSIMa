@@ -166,7 +166,7 @@ async function seedInitialData() {
       console.log('Seeding clinic settings...');
       await db.insert(clinicSettings).values({
         clinicName: 'NANO CIRCUMCISION CLINIC',
-        tagline: 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit',
+        tagline: 'Sunat Canggih & Modern',
         address: 'Jl. Kesehatan No. 88, Jakarta Selatan',
         phone: '0812-8888-9999',
         email: 'info@nanocircumcision.com',
@@ -174,6 +174,8 @@ async function seedInitialData() {
         invoiceHeader: 'Terima kasih atas kepercayaan Anda pada Nano Circumcision Clinic.',
         invoiceFooter: 'Kwitansi & Invoice ini sah dan telah diproses secara digital melalui sistem klinik.',
       });
+    } else if (existingSettings[0]?.tagline === 'Pusat Khitan Modern, Aman & Nyaman Tanpa Jahit' || existingSettings[0]?.tagline === 'Pusat Sunat Canggih & Modern Tanpa Jahit') {
+      await db.update(clinicSettings).set({ tagline: 'Sunat Canggih & Modern' }).where(eq(clinicSettings.id, existingSettings[0].id));
     }
 
     // 2. Seed Patient Categories (REGULER & VIP)
