@@ -10,6 +10,7 @@ import { CircumcisionProcedure, ProcedureChecklist } from '../../types';
 import { TransactionItemManager } from '../products/TransactionItemManager';
 import { NanoMasterLogo, PrintDocumentIcon } from '../common/PrintIcons';
 import { printElementById, openElementInNewTab } from '../../utils/universalPrintHelper';
+import { hasMenuPermission } from '../../utils/permissionUtils';
 
 interface CircumcisionProcedureViewProps {
   onNavigateToCashier?: (invoiceId?: number, autoOpenPayment?: boolean) => void;
@@ -47,7 +48,9 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
     circumcisionMethods, doctorMethodFees, showToast, settings, patients, doctors, categories, 
     packages, refreshAllData, updatePatient 
   } = useClinic();
-  
+
+  const canAccessCashier = hasMenuPermission(currentUser, 'cashier');
+
   const activeMethods = React.useMemo(() => {
     const fromMaster = (circumcisionMethods || []).filter(m => m.isActive && !m.isDeleted);
     if (fromMaster.length > 0) return fromMaster;
@@ -416,10 +419,9 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
       setIsConfirmModalOpen(false);
 
       if (res && res.success) {
-        showToast('Tindakan khitan selesai! Beralih ke kasir pembayaran...', 'success');
-        if (onNavigateToCashier) {
-          onNavigateToCashier(res.invoiceId || selectedProc.bookingId, true);
-        }
+        showToast('Tindakan medis khitan selesai & tersimpan! Berkas rekam medis ditutup dan tagihan diteruskan ke antrean kasir.', 'success');
+        // Tetap berada di Ruang Tindakan: dokter/tim medis fokus pada tugas klinis tanpa dipaksa membuka kasir
+        setSelectedProc((prev) => prev ? { ...prev, status: 'COMPLETED' } : null);
       }
     } catch (err: any) {
       console.error('Error completing procedure:', err);
@@ -1054,23 +1056,22 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
                     {isSubmitting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Menyimpan & Mengalihkan...</span>
+                        <span>Menyimpan Rekam Medis...</span>
                       </>
                     ) : (
                       <>
                         <CheckCircle2 className="w-4 h-4" />
-                        <span>Selesaikan Tindakan & Masuk Kasir</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
+                        <span>Selesaikan Tindakan Medis</span>
                       </>
                     )}
                   </button>
                 ) : (
                   <div className="flex flex-wrap items-center gap-3">
-                    <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-black uppercase">
-                      <CheckCircle2 className="w-5 h-5" />
-                      Tindakan Khitan Telah Selesai
+                    <div className="flex items-center gap-1.5 text-emerald-600 text-xs font-black uppercase bg-emerald-50 px-3 py-2 rounded-xl border border-emerald-200">
+                      <CheckCircle2 className="w-5 h-5 shrink-0" />
+                      <span>Tindakan Khitan Selesai (Menunggu Kasir)</span>
                     </div>
-                    {onNavigateToCashier && (
+                    {canAccessCashier && onNavigateToCashier && (
                       <button
                         type="button"
                         onClick={() => onNavigateToCashier(selectedProc.bookingId, false)}
@@ -1269,10 +1270,10 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
               </div>
               <div className="flex-1">
                 <h3 className="text-base font-black text-slate-900 uppercase">
-                  Selesaikan Tindakan & Lanjut Kasir
+                  Selesaikan Tindakan Medis
                 </h3>
                 <p className="text-[11px] text-slate-500 font-medium">
-                  Konfirmasi finalisasi rekam medis dan penerbitan invoice kasir
+                  Konfirmasi finalisasi rekam medis dan penerbitan sertifikat kelulusan khitan
                 </p>
               </div>
               <button
@@ -1336,11 +1337,11 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
                   </li>
                   <li className="flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Sertifikat khitan otomatis diterbitkan</span>
+                    <span>Sertifikat kelulusan khitan otomatis diterbitkan</span>
                   </li>
                   <li className="flex items-center gap-1.5">
                     <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Sistem langsung membuka invoice di kasir untuk pembayaran</span>
+                    <span>Tagihan diteruskan ke antrean kasir (pembayaran diproses kasir/admin berwenang)</span>
                   </li>
                 </ul>
               </div>
@@ -1364,13 +1365,12 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
                 {isSubmitting ? (
                   <>
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Menyimpan & Mengalihkan...</span>
+                    <span>Menyimpan Rekam Medis...</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle2 className="w-4 h-4" />
-                    <span>Ya, Selesaikan & Buka Kasir</span>
-                    <ArrowRight className="w-3.5 h-3.5" />
+                    <span>Ya, Selesaikan Tindakan Medis</span>
                   </>
                 )}
               </button>

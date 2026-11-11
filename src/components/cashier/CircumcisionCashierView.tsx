@@ -7,6 +7,7 @@ import {
 import { Invoice, TransactionItem } from '../../types';
 import { NanoMasterLogo, PrintReceiptIcon, PrintInvoiceIcon } from '../common/PrintIcons';
 import { printElementById, openElementInNewTab } from '../../utils/universalPrintHelper';
+import { hasMenuPermission } from '../../utils/permissionUtils';
 
 interface CircumcisionCashierViewProps {
   initialInvoiceId?: number | null;
@@ -51,6 +52,24 @@ export const CircumcisionCashierView: React.FC<CircumcisionCashierViewProps> = (
       }
     }
   }, [initialInvoiceId, invoices, autoOpenPayment]);
+
+  const isAuthorized = hasMenuPermission(currentUser, 'cashier');
+  if (!isAuthorized) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto my-12 text-center bg-white rounded-2xl border border-red-200 shadow-sm space-y-4">
+        <div className="w-16 h-16 mx-auto bg-red-50 text-red-600 rounded-full flex items-center justify-center">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-black text-slate-900 uppercase">Akses Terbatas: Menu Kasir &amp; Pembayaran</h2>
+        <p className="text-sm text-slate-600 leading-relaxed">
+          Menu Kasir dan fungsi penerimaan pembayaran khusus diperuntukkan bagi petugas <strong>Kasir</strong> atau pengguna dengan otoritas berwenang (seperti <strong>Owner / Admin</strong>).
+        </p>
+        <p className="text-xs text-slate-500">
+          Anda saat ini masuk sebagai <strong>{currentUser?.fullName || currentUser?.name || currentUser?.email} ({currentUser?.role})</strong>. Jika Anda memerlukan akses kasir, silakan hubungi Administrator untuk mengaktifkan izin &quot;Kasir &amp; Invoice Pembayaran&quot; pada menu Manajemen Pengguna.
+        </p>
+      </div>
+    );
+  }
 
   const formatRupiah = (val: number) => {
     return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(val);

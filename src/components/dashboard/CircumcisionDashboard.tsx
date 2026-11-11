@@ -37,29 +37,56 @@ export const CircumcisionDashboard: React.FC<Props> = ({ onNavigate }) => {
   const [stockCategoryFilter, setStockCategoryFilter] = useState<string>('ALL');
   const [stockSearch, setStockSearch] = useState<string>('');
 
-  // Indonesian date formatter
+  // Indonesian date formatter with defensive fallback
   const formatIndonesianDate = (dateStr: string) => {
-    if (!dateStr) return '';
+    if (!dateStr || typeof dateStr !== 'string') return '';
     try {
-      const [y, m, d] = dateStr.split('-').map(Number);
-      if (!y || !m || !d) return dateStr;
-      const dateObj = new Date(y, m - 1, d);
-      return dateObj.toLocaleDateString('id-ID', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
+      if (dateStr.includes('-')) {
+        const parts = dateStr.split('-').map(Number);
+        if (parts.length >= 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2]) && parts[0] > 1900) {
+          const dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+          if (!isNaN(dateObj.getTime())) {
+            return dateObj.toLocaleDateString('id-ID', {
+              weekday: 'long',
+              day: 'numeric',
+              month: 'long',
+              year: 'numeric'
+            });
+          }
+        }
+      }
+      const parsed = new Date(dateStr);
+      if (!isNaN(parsed.getTime())) {
+        return parsed.toLocaleDateString('id-ID', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+      }
+      return dateStr;
     } catch {
       return dateStr;
     }
   };
 
-  // Helper to adjust date by delta days
+  // Helper to adjust date by delta days with defensive checks
   const handleShiftDate = (days: number) => {
     try {
+      if (!selectedDate || typeof selectedDate !== 'string' || !selectedDate.includes('-')) {
+        setSelectedDate(todayStr);
+        return;
+      }
       const parts = selectedDate.split('-').map(Number);
+      if (parts.length < 3 || isNaN(parts[0]) || isNaN(parts[1]) || isNaN(parts[2])) {
+        setSelectedDate(todayStr);
+        return;
+      }
       const curr = new Date(parts[0], parts[1] - 1, parts[2]);
+      if (isNaN(curr.getTime())) {
+        setSelectedDate(todayStr);
+        return;
+      }
       curr.setDate(curr.getDate() + days);
       const nextY = curr.getFullYear();
       const nextM = String(curr.getMonth() + 1).padStart(2, '0');

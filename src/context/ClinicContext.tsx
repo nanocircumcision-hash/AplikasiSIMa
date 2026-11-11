@@ -259,16 +259,24 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       (currentUser as any)?.activeBranch || 
       currentUser?.branchCode || 
       'PUSAT';
+    const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null;
     return {
       'Content-Type': 'application/json',
-      'x-clinic-role': currentUser?.role || 'admin',
-      'x-clinic-user': String(currentUser?.username || currentUser?.id || 'admin'),
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...(token ? { 'x-session-token': token } : {}),
+      'x-clinic-role': currentUser?.role || '',
+      'x-clinic-user': String(currentUser?.username || currentUser?.id || ''),
       'x-branch-code': effectiveBranch,
     };
   }, [currentUser, activeBranchCode]);
 
   const refreshAllData = useCallback(async (branchOverride?: string) => {
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null;
+      if (!currentUser && !token) {
+        setIsLoading(false);
+        return;
+      }
       setIsLoading(true);
       const headers = getHeaders(branchOverride);
 
@@ -347,44 +355,24 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, [getHeaders]);
 
-  // Re-fetch when activeBranchCode changes
+  // Re-fetch only when authenticated user exists
   useEffect(() => {
-    refreshAllData();
-  }, [activeBranchCode]);
-
-  useEffect(() => {
-    refreshAllData();
-  }, [refreshAllData]);
-
-  const switchRoleQuick = (role: UserRole) => {
-    if (role === 'admin' || role === 'owner') {
-      setCurrentUser({
-        id: 'user-admin',
-        username: 'admin',
-        fullName: 'H. Rian Gunawan, S.E. (Super Admin)',
-        role: 'admin',
-        email: 'admin@nanocircumcision.com',
-      });
-      showToast('Beralih ke Peran Super Admin (Akses Penuh Seluruh Modul)', 'info');
-    } else if (role === 'doctor') {
-      setCurrentUser({
-        id: 'user-doctor',
-        username: 'dokter',
-        fullName: 'dr. Bambang Irawan, Sp.B (Dokter Operator)',
-        role: 'doctor',
-        email: 'dokter@nanocircumcision.com',
-      });
-      showToast('Beralih ke Peran Dokter (Jadwal, Pasien, Tindakan Medis & Fee)', 'info');
+    if (currentUser) {
+      refreshAllData();
     } else {
-      setCurrentUser({
-        id: 'user-staff',
-        username: 'staff',
-        fullName: 'Dina Safitri (Staff Front Office & Kasir)',
-        role: 'staff',
-        email: 'staff@nanocircumcision.com',
-      });
-      showToast('Beralih ke Peran Staff (Pendaftaran, Booking, Kasir & Stok)', 'info');
+      setIsLoading(false);
     }
+  }, [activeBranchCode, currentUser, refreshAllData]);
+
+  const switchRoleQuick = async (role: UserRole) => {
+    const defaultUsernames: Record<string, string> = {
+      admin: 'admin',
+      owner: 'owner',
+      doctor: 'dokter',
+      staff: 'staff',
+    };
+    const uname = defaultUsernames[role] || 'staff';
+    await login(uname, 'password123', undefined, role);
   };
 
   const login = async (username: string, password = 'password123', branchCode?: string, role?: UserRole): Promise<{ success: boolean; error?: string }> => {
@@ -408,6 +396,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       };
       setCurrentUser(userObj);
 
+      if (data.token && typeof window !== 'undefined') {
+        localStorage.setItem('clinic_session_token', data.token);
+      }
+
       // Handle active branch with immediate data refresh for the target branch
       const targetBranch = rawUser.activeBranch || branchCode || (rawUser.branchCode && rawUser.branchCode !== 'ALL' ? rawUser.branchCode : 'PUSAT');
       setActiveBranchCodeState(targetBranch);
@@ -426,11 +418,6 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await refreshAllData(targetBranch);
       return { success: true };
     } catch (err: any) {
-      // Fallback
-      if (role) {
-        switchRoleQuick(role);
-        return { success: true };
-      }
       return { success: false, error: err.message };
     }
   };
@@ -441,6 +428,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (typeof window !== 'undefined') {
       try {
         localStorage.removeItem('clinic_user_session');
+        localStorage.removeItem('clinic_session_token');
       } catch {
         // ignore
       }
@@ -632,7 +620,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         showToast(result.error || 'Gagal menyelesaikan tindakan', 'error');
         return { success: false, error: result.error };
       }
-      showToast(`Tindakan selesai & tersimpan! Dialihkan ke kasir pembayaran...`, 'success');
+      showToast(`Tindakan medis selesai & tersimpan! Tagihan diteruskan ke antrean kasir.`, 'success');
       await refreshAllData();
       return { 
         success: true,

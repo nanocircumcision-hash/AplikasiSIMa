@@ -21,7 +21,7 @@ import {
   generateQueueNumber, generateStockMovementNumber, generateProductSKU,
   generateDoctorCode, generateEmployeeCode, generateEmployeeFeeNumber, generatePayrollNumber
 } from './src/utils/numbering.ts';
-import { requireAuth, type AuthRequest } from './src/middleware/auth.ts';
+import { requireAuth, createSessionToken, type AuthRequest } from './src/middleware/auth.ts';
 import { detectPgTools, runNativePgDump, getPostgresConfig, listSavedBackups, formatBytes } from './src/utils/postgresNativeBackup.ts';
 import { generateCompletePostgresDdl, buildCompletePostgresSqlDump, getAllPostgresTableCreationStatements, getAllPostgresIndexStatements } from './src/utils/postgresSchemaDdl.ts';
 import { generateCompleteMysqlDdl, buildCompleteMysqlDump } from './src/utils/mysqlSchemaDdl.ts';
@@ -1231,6 +1231,17 @@ async function ensureDatabaseSchema() {
     console.warn('Notice during runCompleteSchemaMigration:', err?.message || err);
   }
 
+  // Ensure unique index for multi-user booking concurrency conflict prevention
+  try {
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_active_doctor_schedule_conflict 
+      ON bookings (doctor_id, booking_date, booking_time) 
+      WHERE status NOT IN ('CANCELLED', 'NO_SHOW');
+    `);
+  } catch (idxErr: any) {
+    console.warn('Notice ensuring booking concurrency index:', idxErr?.message || idxErr);
+  }
+
   // 1. Auto-seed initial clinic setup (branches, settings, users, categories, packages, doctors, products)
   try {
     await seedInitialData();
@@ -2060,7 +2071,30 @@ app.post('/api/auth/login', async (req, res) => {
       parsedPermissions = [];
     }
 
+    const sessionToken = createSessionToken({
+      uid: matched.uid,
+      id: matched.id,
+      email: matched.email,
+      fullName: matched.fullName,
+      role: matched.role,
+      branchCode: activeBranch,
+    });
+
     res.json({
+      token: sessionToken,
+      user: {
+        id: matched.uid,
+        dbId: matched.id,
+        email: matched.email,
+        fullName: matched.fullName,
+        role: matched.role,
+        permissions: parsedPermissions,
+        phone: matched.phone,
+        branchCode: matched.branchCode || 'PUSAT',
+        activeBranch,
+        lastLogin: matched.lastLogin,
+      },
+      // Backward compatibility fields
       id: matched.uid,
       dbId: matched.id,
       email: matched.email,
@@ -5491,7 +5525,7 @@ app.get('/api/payrolls/:id/slip', async (req, res) => {
 });
 
 // Patients & Guardians
-app.get('/api/patients', async (req, res) => {
+app.get('/api/patients', requireAuth, async (req: AuthRequest, res) => {
   try {
     const { includeDeleted } = req.query;
 
@@ -5545,13 +5579,13 @@ app.get('/api/patients', async (req, res) => {
   }
 });
 
-app.get('/api/guardians', async (req, res) => {
+app.get('/api/guardians', requireAuth, async (req: AuthRequest, res) => {
   try {
     const guards = await db.select().from(guardians).orderBy(desc(guardians.id));
     const pts = await db.select().from(patients).where(eq(patients.isActive, true));
     const enriched = guards.map(g => ({
       ...g,
-      children: pts.filter(p => p.guardianId === g.id),
+      children: pts.filter(p => p.guardianId != null && p.guardianId === g.id),
     }));
     res.json(enriched);
   } catch (err: any) {
@@ -5571,6 +5605,38 @@ app.post('/api/patients', requireAuth, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Nama lengkap anak wajib diisi' });
     }
     const cleanFullName = String(fullName).trim();
+
+    if (birthDate) {
+      const bDateParsed = new Date(birthDate);
+      if (isNaN(bDateParsed.getTime())) {
+        return res.status(400).json({ error: 'Format tanggal lahir tidak valid' });
+      }
+      if (bDateParsed.getTime() > Date.now()) {
+        return res.status(400).json({ error: 'Tanggal lahir tidak boleh di masa depan' });
+      }
+    }
+
+    const cleanNik = nik ? String(nik).trim().replace(/[-\s]/g, '') : '';
+    if (cleanNik && cleanNik.length > 0) {
+      if (!/^\d{16}$/.test(cleanNik)) {
+        return res.status(400).json({ error: 'Nomor Induk Kependudukan (NIK) harus terdiri dari 16 digit angka' });
+      }
+    }
+
+    if (weightKg !== undefined && weightKg !== null && String(weightKg).trim() !== '') {
+      const w = Number(weightKg);
+      if (isNaN(w) || w <= 0 || w > 300) {
+        return res.status(400).json({ error: 'Berat badan tidak valid (masukkan angka antara 0.5 - 300 kg)' });
+      }
+    }
+
+    if (heightCm !== undefined && heightCm !== null && String(heightCm).trim() !== '') {
+      const h = Number(heightCm);
+      if (isNaN(h) || h <= 0 || h > 250) {
+        return res.status(400).json({ error: 'Tinggi badan tidak valid (masukkan angka antara 20 - 250 cm)' });
+      }
+    }
+
     const cleanBirthDate = birthDate ? String(birthDate).trim() : new Date().toISOString().split('T')[0];
 
     const branchFilter = getBranchFilter(req);
@@ -6481,7 +6547,7 @@ app.post('/api/patients/:id/restore', requireAuth, async (req: AuthRequest, res)
 });
 
 // Bookings
-app.get('/api/bookings', async (req, res) => {
+app.get('/api/bookings', requireAuth, async (req: AuthRequest, res) => {
   try {
     const list = await db.select({
       id: bookings.id,
@@ -6593,87 +6659,94 @@ app.post('/api/bookings', requireAuth, async (req: AuthRequest, res) => {
       if (empRecord.length > 0) resolvedClosingStaffName = empRecord[0].name;
     }
 
-    // 3. Create Booking
-    const newBooking = await db.insert(bookings).values({
-      bookingNumber,
-      patientId,
-      guardianId,
-      patientCategoryId,
-      packageId,
-      doctorId,
-      bookingDate,
-      bookingTime,
-      methodType: methodType || 'Klem Nano Sealer',
-      anesthesiaType: anesthesiaType || 'Bius Tanpa Jarum Suntik / FREE Needle injection (FNI)',
-      packagePriceSnapshot: packagePrice,
-      discountAmount: discount,
-      totalAmount: total,
-      dpAmount: dp,
-      remainingAmount: remaining,
-      patientSource: patientSource || 'Walk-in',
-      closingStaffId: closingStaffId ? Number(closingStaffId) : null,
-      closingStaffName: resolvedClosingStaffName,
-      notes: notes || '',
-      status: initialStatus,
-      branchCode: targetBranch,
-    }).returning();
-
-    const booking = newBooking[0];
-
-    // Status History
-    await db.insert(bookingStatusHistory).values({
-      bookingId: booking.id,
-      status: initialStatus,
-      changedBy: req.user?.name || 'Staff',
-      notes: dp > 0 ? `Booking dibuat dengan DP Rp ${dp.toLocaleString('id-ID')}` : 'Booking baru terdaftar',
-    });
-
-    // 4. Create Automatic Invoice
-    const invoiceNumber = await generateInvoiceNumber();
-    const invoiceStatus = dp >= total ? 'PAID' : dp > 0 ? 'PARTIAL' : 'UNPAID';
-
-    const newInvoice = await db.insert(invoices).values({
-      invoiceNumber,
-      bookingId: booking.id,
-      patientId,
-      doctorId,
-      invoiceDate: bookingDate,
-      subtotal: packagePrice,
-      discount,
-      totalAmount: total,
-      paidAmount: dp,
-      remainingAmount: remaining,
-      status: invoiceStatus,
-      notes: `Invoice untuk Booking ${bookingNumber}`,
-      branchCode: targetBranch,
-    }).returning();
-
-    // 5. If DP paid, record payment
-    if (dp > 0) {
-      const payNum = `PAY-${invoiceNumber.replace('INV-', '')}`;
-      const nowTime = new Date().toTimeString().split(' ')[0];
-      await db.insert(payments).values({
-        paymentNumber: payNum,
-        invoiceId: newInvoice[0].id,
-        paymentDate: bookingDate,
-        paymentTime: nowTime,
-        amount: dp,
-        paymentMethod: paymentMethod || 'TRANSFER',
-        paymentType: 'DP',
-        referenceNumber: `DP-${bookingNumber}`,
-        receivedBy: req.user?.name || 'Staff Kasir',
+    // 3. Create Booking & Automatic Invoice atomically
+    const { booking, invoice } = await db.transaction(async (tx) => {
+      const newBooking = await tx.insert(bookings).values({
+        bookingNumber,
+        patientId,
+        guardianId,
+        patientCategoryId,
+        packageId,
+        doctorId,
+        bookingDate,
+        bookingTime,
+        methodType: methodType || 'Klem Nano Sealer',
+        anesthesiaType: anesthesiaType || 'Bius Tanpa Jarum Suntik / FREE Needle injection (FNI)',
+        packagePriceSnapshot: packagePrice,
+        discountAmount: discount,
+        totalAmount: total,
+        dpAmount: dp,
+        remainingAmount: remaining,
+        patientSource: patientSource || 'Walk-in',
+        closingStaffId: closingStaffId ? Number(closingStaffId) : null,
+        closingStaffName: resolvedClosingStaffName,
+        notes: notes || '',
+        status: initialStatus,
         branchCode: targetBranch,
+      }).returning();
+
+      const createdBooking = newBooking[0];
+
+      // Status History
+      await tx.insert(bookingStatusHistory).values({
+        bookingId: createdBooking.id,
+        status: initialStatus,
+        changedBy: req.user?.name || 'Staff',
+        notes: dp > 0 ? `Booking dibuat dengan DP Rp ${dp.toLocaleString('id-ID')}` : 'Booking baru terdaftar',
       });
-    }
+
+      // 4. Create Automatic Invoice
+      const invoiceNumber = await generateInvoiceNumber();
+      const invoiceStatus = dp >= total ? 'PAID' : dp > 0 ? 'PARTIAL' : 'UNPAID';
+
+      const newInvoice = await tx.insert(invoices).values({
+        invoiceNumber,
+        bookingId: createdBooking.id,
+        patientId,
+        doctorId,
+        invoiceDate: bookingDate,
+        subtotal: packagePrice,
+        discount,
+        totalAmount: total,
+        paidAmount: dp,
+        remainingAmount: remaining,
+        status: invoiceStatus,
+        notes: `Invoice untuk Booking ${bookingNumber}`,
+        branchCode: targetBranch,
+      }).returning();
+
+      // 5. If DP paid, record payment
+      if (dp > 0) {
+        const payNum = `PAY-${invoiceNumber.replace('INV-', '')}`;
+        const nowTime = new Date().toTimeString().split(' ')[0];
+        await tx.insert(payments).values({
+          paymentNumber: payNum,
+          invoiceId: newInvoice[0].id,
+          paymentDate: bookingDate,
+          paymentTime: nowTime,
+          amount: dp,
+          paymentMethod: paymentMethod || 'TRANSFER',
+          paymentType: 'DP',
+          referenceNumber: `DP-${bookingNumber}`,
+          receivedBy: req.user?.name || 'Staff Kasir',
+          branchCode: targetBranch,
+        });
+      }
+
+      return { booking: createdBooking, invoice: newInvoice[0] };
+    });
 
     // Auto-prepare included package items for this booking
     await ensureIncludedItemsForBooking(booking.id);
 
     await recordAudit('CREATE', 'BOOKING', bookingNumber, req.user?.email || 'Staff', `Booking baru pasien ${patientId} total Rp ${total}`);
-    res.json({ booking, invoice: newInvoice[0] });
+    res.json({ booking, invoice });
   } catch (err: any) {
-    console.error(err);
-    res.status(500).json({ error: 'Gagal membuat booking baru' });
+    console.error('Error creating booking:', err);
+    if (err?.code === '23505' || String(err?.message || '').includes('idx_active_doctor_schedule_conflict')) {
+      return res.status(400).json({ error: 'Dokter sudah memiliki jadwal tindakan pada tanggal dan jam tersebut. Silakan pilih jam atau dokter lain.' });
+    }
+    res.status(500).json({ error: err?.message || 'Gagal membuat booking baru' });
   }
 });
 
@@ -6771,7 +6844,7 @@ app.put('/api/bookings/:id', requireAuth, async (req: AuthRequest, res) => {
           const prod = await db.select().from(products).where(eq(products.id, item.productId));
           if (prod.length > 0) {
             const currentProd = prod[0];
-            const newStock = currentProd.stock - item.quantity;
+            const newStock = Math.max(0, currentProd.stock - item.quantity);
             await db.update(products).set({ stock: newStock }).where(eq(products.id, currentProd.id));
             const movNum = await generateStockMovementNumber();
             const prodMeta = parseProductMetadata(currentProd);
@@ -6875,7 +6948,7 @@ app.post(['/api/bookings/:id/checkin', '/api/bookings/:id/check-in'], requireAut
 });
 
 // Queues Today
-app.get('/api/queues', async (req, res) => {
+app.get('/api/queues', requireAuth, async (req: AuthRequest, res) => {
   try {
     const today = (req.query.date as string) || new Date().toISOString().split('T')[0];
     const list = await db.select({
@@ -6915,7 +6988,7 @@ app.get('/api/queues', async (req, res) => {
 });
 
 // Circumcision Procedures (Tindakan Khitan)
-app.get('/api/procedures', async (req, res) => {
+app.get('/api/procedures', requireAuth, async (req: AuthRequest, res) => {
   try {
     const list = await db.select({
       id: circumcisionProcedures.id,
@@ -7254,7 +7327,7 @@ app.post('/api/procedures/:id/complete', requireAuth, async (req: AuthRequest, r
       const prod = await db.select().from(products).where(eq(products.id, item.productId));
       if (prod.length > 0) {
         const currentProd = prod[0];
-        const newStock = currentProd.stock - item.quantity;
+        const newStock = Math.max(0, currentProd.stock - item.quantity);
         await db.update(products).set({ stock: newStock }).where(eq(products.id, currentProd.id));
 
         const movNum = await generateStockMovementNumber();
@@ -7301,7 +7374,7 @@ app.post('/api/procedures/:id/complete', requireAuth, async (req: AuthRequest, r
 });
 
 // Invoices & Payments
-app.get('/api/invoices', async (req, res) => {
+app.get('/api/invoices', requireAuth, async (req: AuthRequest, res) => {
   try {
     const list = await db.select({
       id: invoices.id,
@@ -7358,62 +7431,126 @@ app.get('/api/invoices', async (req, res) => {
   }
 });
 
+// Helper to verify if the requesting user has cashier authority
+async function checkCashierAuthority(req: AuthRequest): Promise<boolean> {
+  const role = (req.user?.role || '').toLowerCase();
+  if (role === 'owner' || role === 'admin' || role === 'super_admin') return true;
+
+  const uid = req.user?.uid;
+  const email = req.user?.email;
+  if (!uid && !email) return false;
+
+  try {
+    const userCondition = uid ? eq(users.uid, uid) : eq(users.email, email!);
+    const userRecords = await db.select().from(users).where(userCondition).limit(1);
+    if (userRecords.length === 0) return false;
+    const u = userRecords[0];
+    const uRole = (u.role || '').toLowerCase();
+    if (uRole === 'owner' || uRole === 'admin' || uRole === 'super_admin') return true;
+    if (u.permissions) {
+      try {
+        const perms = typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions;
+        if (Array.isArray(perms) && (perms.includes('cashier') || perms.includes('invoices.pay') || perms.includes('cashier.pay'))) {
+          return true;
+        }
+      } catch {
+        if (String(u.permissions).includes('cashier')) return true;
+      }
+    }
+    // If default staff without explicit restriction
+    if (uRole === 'staff' && (!u.permissions || u.permissions === '[]')) {
+      return true;
+    }
+  } catch {
+    return false;
+  }
+  return false;
+}
+
 // Process Invoice Payment (Pelunasan / Partial)
 app.post('/api/invoices/:id/pay', requireAuth, async (req: AuthRequest, res) => {
   try {
+    const isAuthorized = await checkCashierAuthority(req);
+    if (!isAuthorized) {
+      return res.status(403).json({
+        error: 'Akses Ditolak: Anda tidak memiliki otoritas kasir untuk memproses pembayaran ini. Transaksi kasir hanya dapat dilakukan oleh kasir atau pengguna yang diberikan otoritas di menu pengguna (misal: Admin/Owner).'
+      });
+    }
+
     const invoiceId = Number(req.params.id);
     const { amount, paymentMethod, notes, referenceNumber } = req.body;
 
     const payAmt = Number(amount);
-    if (payAmt <= 0) return res.status(400).json({ error: 'Nominal pembayaran harus lebih dari 0' });
+    if (isNaN(payAmt) || payAmt <= 0) {
+      return res.status(400).json({ error: 'Nominal pembayaran harus berupa angka lebih dari 0' });
+    }
 
     const invList = await db.select().from(invoices).where(eq(invoices.id, invoiceId));
     if (invList.length === 0) return res.status(404).json({ error: 'Invoice tidak ditemukan' });
     const invoice = invList[0];
 
+    if (invoice.status === 'PAID') {
+      return res.status(400).json({ error: 'Invoice ini sudah lunas sebelumnya.' });
+    }
+
+    // Overpayment validation
+    if (payAmt > invoice.remainingAmount) {
+      return res.status(400).json({ 
+        error: `Nominal pembayaran (Rp ${payAmt.toLocaleString('id-ID')}) melebihi sisa tagihan (Rp ${invoice.remainingAmount.toLocaleString('id-ID')}).` 
+      });
+    }
+
     const newPaid = invoice.paidAmount + payAmt;
     const newRemaining = Math.max(0, invoice.totalAmount - newPaid);
     const newStatus = newRemaining === 0 ? 'PAID' : 'PARTIAL';
 
-    // Record payment first to ensure transaction log succeeds
     const paymentNumber = `PAY-${invoice.invoiceNumber.replace('INV-', '')}-${Date.now().toString().slice(-4)}`;
     const nowTime = new Date().toTimeString().split(' ')[0];
-    const payRecord = await db.insert(payments).values({
-      paymentNumber,
-      invoiceId,
-      paymentDate: new Date().toISOString().split('T')[0],
-      paymentTime: nowTime,
-      amount: payAmt,
-      paymentMethod: paymentMethod || 'CASH',
-      paymentType: newRemaining === 0 ? 'FULL_PAYMENT' : 'PARTIAL',
-      referenceNumber: referenceNumber || '',
-      notes: notes || '',
-      receivedBy: req.user?.name || 'Staff Kasir',
-      branchCode: invoice.branchCode || 'PUSAT',
-    }).returning();
 
-    // Update invoice
-    await db.update(invoices)
-      .set({
-        paidAmount: newPaid,
-        remainingAmount: newRemaining,
-        status: newStatus,
-      })
-      .where(eq(invoices.id, invoiceId));
+    // Atomic Database Transaction
+    const result = await db.transaction(async (tx) => {
+      // 1. Insert Payment Record
+      const payRecord = await tx.insert(payments).values({
+        paymentNumber,
+        invoiceId,
+        paymentDate: new Date().toISOString().split('T')[0],
+        paymentTime: nowTime,
+        amount: payAmt,
+        paymentMethod: paymentMethod || 'CASH',
+        paymentType: newRemaining === 0 ? 'FULL_PAYMENT' : 'PARTIAL',
+        referenceNumber: referenceNumber || '',
+        notes: notes || '',
+        receivedBy: req.user?.name || 'Staff Kasir',
+        branchCode: invoice.branchCode || 'PUSAT',
+      }).returning();
 
-    // Update booking remaining & status if procedure was done and payment is fully paid
-    const relatedProc = await db.select().from(circumcisionProcedures).where(eq(circumcisionProcedures.bookingId, invoice.bookingId));
-    const isProcedureFinished = relatedProc.some(p => p.status === 'COMPLETED');
+      // 2. Update Invoice
+      await tx.update(invoices)
+        .set({
+          paidAmount: newPaid,
+          remainingAmount: newRemaining,
+          status: newStatus,
+        })
+        .where(eq(invoices.id, invoiceId));
 
-    await db.update(bookings)
-      .set({
-        remainingAmount: newRemaining,
-        ...(newStatus === 'PAID' && isProcedureFinished ? { status: 'COMPLETED' } : (newStatus === 'PAID' && invoice.paidAmount === 0 ? { status: 'CONFIRMED' } : {})),
-      })
-      .where(eq(bookings.id, invoice.bookingId));
+      // 3. Update Booking
+      if (invoice.bookingId) {
+        const relatedProc = await tx.select().from(circumcisionProcedures).where(eq(circumcisionProcedures.bookingId, invoice.bookingId));
+        const isProcedureFinished = relatedProc.some(p => p.status === 'COMPLETED');
+
+        await tx.update(bookings)
+          .set({
+            remainingAmount: newRemaining,
+            ...(newStatus === 'PAID' && isProcedureFinished ? { status: 'COMPLETED' } : (newStatus === 'PAID' && invoice.paidAmount === 0 ? { status: 'CONFIRMED' } : {})),
+          })
+          .where(eq(bookings.id, invoice.bookingId));
+      }
+
+      return payRecord[0];
+    });
 
     await recordAudit('PAYMENT', 'INVOICE', invoice.invoiceNumber, req.user?.email || 'Kasir', `Pembayaran Rp ${payAmt.toLocaleString('id-ID')}, sisa Rp ${newRemaining.toLocaleString('id-ID')}`);
-    res.json({ success: true, payment: payRecord[0], invoiceStatus: newStatus, remainingAmount: newRemaining });
+    res.json({ success: true, payment: result, invoiceStatus: newStatus, remainingAmount: newRemaining });
   } catch (err: any) {
     console.error('Error in /api/invoices/:id/pay:', err);
     res.status(500).json({ error: err?.message || 'Gagal memproses pembayaran' });
@@ -7423,6 +7560,11 @@ app.post('/api/invoices/:id/pay', requireAuth, async (req: AuthRequest, res) => 
 // Void / Cancel Invoice with Mandatory Reason & Audit
 app.post('/api/invoices/:id/void', requireAuth, async (req: AuthRequest, res) => {
   try {
+    const isAuthorized = await checkCashierAuthority(req);
+    if (!isAuthorized) {
+      return res.status(403).json({ error: 'Akses Ditolak: Pembatalan invoice hanya dapat dilakukan oleh kasir atau admin berwenang.' });
+    }
+
     const invoiceId = Number(req.params.id);
     const { voidReason } = req.body;
 

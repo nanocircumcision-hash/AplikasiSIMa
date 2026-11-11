@@ -98,7 +98,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen,
   onCloseMobile,
 }) => {
-  const { currentUser, logout, procedures, invoices, activeBranchCode, branches } = useClinic();
+  const { currentUser, logout, procedures, invoices, activeBranchCode, branches, settings } = useClinic();
   const role = currentUser?.role || 'admin';
 
   // Dynamic badges
@@ -278,13 +278,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* Mobile Header */}
         <div className="h-16 lg:hidden flex items-center px-4 border-b border-slate-100 shrink-0 justify-between bg-white">
           <div className="flex items-center gap-2.5">
-            <NanoAppIcon size={30} className="shrink-0" />
+            <div className="p-1 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-center min-w-[36px] min-h-[36px]">
+              {settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') ? (
+                <img 
+                  src={settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') || ''} 
+                  alt="Logo" 
+                  className="max-h-[30px] max-w-[70px] object-contain rounded"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'block';
+                  }}
+                />
+              ) : null}
+              <div style={{ display: (settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '')) ? 'none' : 'block' }}>
+                <NanoAppIcon size={30} className="shrink-0" />
+              </div>
+            </div>
             <div>
               <span className="font-bold tracking-tight text-slate-900 text-xs block leading-none">
-                NANO CIRCUMCISION
+                {settings.clinicName || 'NANO CIRCUMCISION'}
               </span>
               <span className="text-[10px] text-orange-700 font-bold tracking-wider mt-0.5 block">
-                KLINIK KHITAN
+                {settings.tagline || 'KLINIK KHITAN'}
               </span>
             </div>
           </div>

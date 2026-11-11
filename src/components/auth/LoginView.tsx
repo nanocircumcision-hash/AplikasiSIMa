@@ -101,8 +101,22 @@ export const LoginView: React.FC = () => {
           
           {/* Header Branding Klinik */}
           <div className="text-center space-y-2">
-            <div className="inline-flex p-2.5 rounded-2xl bg-gradient-to-tr from-orange-50 via-amber-50 to-purple-50 border border-slate-200/80 shadow-xs mb-1">
-              <NanoAppIcon size={52} className="drop-shadow-sm" />
+            <div className="inline-flex p-2 rounded-2xl bg-gradient-to-tr from-orange-50 via-amber-50 to-purple-50 border border-slate-200/80 shadow-xs mb-1 items-center justify-center min-w-[64px] min-h-[64px]">
+              {settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') ? (
+                <img 
+                  src={settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') || ''} 
+                  alt={settings.clinicName || 'Logo Klinik'} 
+                  className="max-h-[58px] max-w-[140px] object-contain drop-shadow-xs rounded-xl"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                    if (fallback) fallback.style.display = 'block';
+                  }}
+                />
+              ) : null}
+              <div style={{ display: (settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '')) ? 'none' : 'block' }}>
+                <NanoAppIcon size={52} className="drop-shadow-sm" />
+              </div>
             </div>
             <div>
               <h1 className="text-lg sm:text-xl font-black text-slate-900 tracking-tight uppercase leading-tight">

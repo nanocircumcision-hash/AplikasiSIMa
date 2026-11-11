@@ -24,7 +24,7 @@ import { BranchManagementView } from './components/branches/BranchManagementView
 import { hasMenuPermission, getUserEffectivePermissions } from './utils/permissionUtils';
 
 const MainLayout: React.FC = () => {
-  const { currentUser, isLoading } = useClinic();
+  const { currentUser, isLoading, showToast } = useClinic();
   const [activeView, setActiveView] = useState<string>('dashboard');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [cashierTargetInvoiceId, setCashierTargetInvoiceId] = useState<number | null>(null);
@@ -62,7 +62,11 @@ const MainLayout: React.FC = () => {
     setActiveView(menu);
   };
 
-  const handleNavigateToCashier = (invoiceId?: number, autoOpenPayment: boolean = true) => {
+  const handleNavigateToCashier = (invoiceId?: number, autoOpenPayment: boolean = false) => {
+    if (!hasMenuPermission(currentUser, 'cashier')) {
+      showToast('Akses dibatasi: Menu Kasir dan pembayaran hanya dapat diakses oleh kasir atau admin berwenang.', 'error');
+      return;
+    }
     setCashierTargetInvoiceId(invoiceId || null);
     setCashierAutoOpenPayment(autoOpenPayment);
     setActiveView('cashier');
