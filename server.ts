@@ -485,8 +485,8 @@ async function seedInitialData() {
           {
             methodName: 'Metode Glans Pro Bipolar Pensealer',
             patientCondition: 'STANDAR',
-            regulerFee: 350000,
-            vipFee: 450000,
+            regulerFee: 250000,
+            vipFee: 350000,
             description: 'Fee dokter tindakan Glans Pro Bipolar Pensealer anak standar',
           },
           {
@@ -611,6 +611,46 @@ async function seedInitialData() {
           });
         }
       }
+
+      // Normalisasi otomatis aturan fee metode lama di database agar tidak ada 450.000 untuk kasus STANDAR
+      try {
+        await pool.query(`
+          UPDATE "doctor_method_fee_rules"
+          SET "vip_fee" = 350000, "reguler_fee" = 250000
+          WHERE "patient_condition" = 'STANDAR' 
+            AND ("doctor_id" IS NULL OR "doctor_id" = 0)
+            AND "vip_fee" = 450000
+        `);
+
+        // Sinkronkan transaksi fee dokter berstatus PENDING dengan fee master dokter yang berlaku
+        const allDocsForSync = await db.select().from(doctors);
+        const allFeeRules = await db.select().from(doctorFeeRules).where(eq(doctorFeeRules.isActive, true));
+        for (const d of allDocsForSync) {
+          const docRules = allFeeRules.filter(f => f.doctorId === d.id);
+          const vipRule = docRules.find(f => f.patientCategoryId === 2);
+          const regRule = docRules.find(f => f.patientCategoryId === 1);
+          const docVip = vipRule ? vipRule.feeAmount : 350000;
+          const docReg = regRule ? regRule.feeAmount : 250000;
+          await pool.query(`
+            UPDATE "doctor_fee_transactions"
+            SET "fee_amount" = $1
+            WHERE "doctor_id" = $2 
+              AND "status" = 'PENDING' 
+              AND ("service_type" = 'VIP' OR "patient_category_id" = 2)
+              AND ("patient_condition" = 'STANDAR' OR "patient_condition" IS NULL)
+          `, [docVip, d.id]);
+          await pool.query(`
+            UPDATE "doctor_fee_transactions"
+            SET "fee_amount" = $1
+            WHERE "doctor_id" = $2 
+              AND "status" = 'PENDING' 
+              AND ("service_type" = 'REGULER' OR "patient_category_id" = 1 OR "patient_category_id" IS NULL)
+              AND ("patient_condition" = 'STANDAR' OR "patient_condition" IS NULL)
+          `, [docReg, d.id]);
+        }
+      } catch (normErr) {
+        console.warn('Notice normalizing doctor method and pending fees:', normErr);
+      }
     } catch (mErr: any) {
       console.warn('Notice seeding doctorMethodFeeRules:', mErr?.message || mErr);
     }
@@ -619,16 +659,12 @@ async function seedInitialData() {
   }
 }
 
-// Auto-seed baseline operational clinic transactions (patients, bookings, procedures, invoices, payments, doctor fees, expenses)
-// Guarantees that fresh Render deployments or empty databases immediately display synchronized reports and profit-loss data!
+// Auto-seed baseline operational clinic transactions (Dinonaktifkan agar tidak menyuntikkan data dummy ke Railway)
 async function ensureSampleTransactionsIfEmpty() {
-  try {
-    const existingBookings = await db.select().from(bookings).limit(1);
-    if (existingBookings && existingBookings.length > 0) {
-      return; // Already has real data, do not overwrite!
-    }
-
-    console.log('[Render DB Sync] Database kosong terdeteksi. Melakukan inisialisasi rekam tindakan khitan & invoice agar laporan langsung sinkron...');
+  // Database di Railway adalah database produksi asli klinik.
+  // Dinonaktifkan: Tidak boleh menyuntikkan data contoh / dummy baru ke database pengguna.
+  return;
+  /*
 
     // 1. Guardian
     let guardianId = 1;
@@ -831,6 +867,7 @@ async function ensureSampleTransactionsIfEmpty() {
   } catch (err: any) {
     console.warn('[Seed Transactions] Notice:', err?.message || err);
   }
+  */
 }
 
 // Comprehensive self-healing schema migrations: Ensure all newly added columns and tables exist in existing database
@@ -1366,7 +1403,7 @@ async function syncBranchCodesAcrossTables() {
   }
 }
 
-// Helper untuk menghitung fee dokter per tindakan berdasarkan metode khitan & kondisi pasien
+// Helper untuk menghitung fee dokter per tindakan berdasarkan data Master Dokter & Nakes
 async function calculateDoctorMethodFee(params: {
   doctorId: number;
   methodType?: string | null;
@@ -1392,7 +1429,51 @@ async function calculateDoctorMethodFee(params: {
     condition = 'DEWASA';
   }
 
-  // 2. Ambil seluruh aturan fee metode yang aktif
+  // 2. Ambil data dokter dari master doctors
+  let targetDoc: any = null;
+  if (doctorId) {
+    try {
+      const docRes = await db.select().from(doctors).where(eq(doctors.id, doctorId));
+      if (docRes.length > 0) targetDoc = docRes[0];
+    } catch (e) {
+      console.warn('Notice loading doctor in calculateDoctorMethodFee:', e);
+    }
+  }
+
+  // 3. Cek apakah ada doctorFeeRules custom untuk dokter dan paket ini
+  let specificDocFee: number | null = null;
+  if (doctorId && params.fallbackPackageId) {
+    try {
+      const feeRules = await db.select().from(doctorFeeRules).where(and(
+        eq(doctorFeeRules.doctorId, doctorId),
+        eq(doctorFeeRules.packageId, params.fallbackPackageId),
+        eq(doctorFeeRules.patientCategoryId, isVip ? 2 : 1),
+        eq(doctorFeeRules.isActive, true)
+      ));
+      if (feeRules.length > 0) {
+        specificDocFee = feeRules[0].feeAmount;
+      }
+    } catch {}
+  }
+
+  // Fee master dokter dari menu Dokter & Nakes (doctorFeeRules)
+  let docMasterFee = isVip ? 350000 : 250000;
+  if (doctorId) {
+    try {
+      const docRules = await db.select().from(doctorFeeRules).where(and(
+        eq(doctorFeeRules.doctorId, doctorId),
+        eq(doctorFeeRules.patientCategoryId, isVip ? 2 : 1),
+        eq(doctorFeeRules.isActive, true)
+      ));
+      if (docRules.length > 0) {
+        docMasterFee = docRules[0].feeAmount;
+      }
+    } catch {}
+  }
+
+  const baseDoctorFee = specificDocFee !== null ? specificDocFee : docMasterFee;
+
+  // 4. Ambil seluruh aturan fee metode yang aktif untuk menghitung surcharge kasus khusus jika bukan STANDAR
   let rules: any[] = [];
   try {
     rules = await db.select().from(doctorMethodFeeRules).where(eq(doctorMethodFeeRules.isActive, true));
@@ -1423,40 +1504,34 @@ async function calculateDoctorMethodFee(params: {
     return r.includes(t) || t.includes(r);
   };
 
-  // 3. Hierarki Pencocokan Aturan:
-  // a) Aturan spesifik dokter dengan kondisi yang sama
-  let matchedRule = rules.find(r => r.doctorId === doctorId && matchMethod(r.methodName, rawMethod) && r.patientCondition === condition);
-  // b) Aturan default semua dokter (doctorId null) dengan kondisi yang sama
-  if (!matchedRule) {
-    matchedRule = rules.find(r => (!r.doctorId || r.doctorId === null) && matchMethod(r.methodName, rawMethod) && r.patientCondition === condition);
-  }
-  // c) Aturan spesifik dokter dengan kondisi STANDAR
-  if (!matchedRule) {
-    matchedRule = rules.find(r => r.doctorId === doctorId && matchMethod(r.methodName, rawMethod) && r.patientCondition === 'STANDAR');
-  }
-  // d) Aturan default semua dokter dengan kondisi STANDAR
-  if (!matchedRule) {
-    matchedRule = rules.find(r => (!r.doctorId || r.doctorId === null) && matchMethod(r.methodName, rawMethod) && r.patientCondition === 'STANDAR');
-  }
-  // e) Fallback aturan metode apa saja yang cocok
-  if (!matchedRule) {
-    matchedRule = rules.find(r => matchMethod(r.methodName, rawMethod));
-  }
+  // Cek apakah ada aturan yang spesifik didedikasikan untuk dokter ini (r.doctorId === doctorId)
+  let specificDocMethodRule = rules.find(r => r.doctorId === doctorId && matchMethod(r.methodName, rawMethod) && r.patientCondition === condition);
 
-  let feeAmount = isVip ? 350000 : 250000;
+  let finalFeeAmount = baseDoctorFee;
   let resolvedMethodName = rawMethod || 'Metode Khitan Modern';
 
-  if (matchedRule) {
-    feeAmount = isVip ? matchedRule.vipFee : matchedRule.regulerFee;
-    resolvedMethodName = matchedRule.methodName;
+  if (specificDocMethodRule) {
+    finalFeeAmount = isVip ? specificDocMethodRule.vipFee : specificDocMethodRule.regulerFee;
+    resolvedMethodName = specificDocMethodRule.methodName;
+  } else if (condition !== 'STANDAR') {
+    // Tambahkan surcharge kondisi khusus (GEMUK, ABK, DEWASA) jika ada
+    const condRule = rules.find(r => matchMethod(r.methodName, rawMethod) && r.patientCondition === condition);
+    const stdRule = rules.find(r => matchMethod(r.methodName, rawMethod) && r.patientCondition === 'STANDAR');
+    if (condRule && stdRule) {
+      const cFee = isVip ? condRule.vipFee : condRule.regulerFee;
+      const sFee = isVip ? stdRule.vipFee : stdRule.regulerFee;
+      const surcharge = Math.max(0, cFee - sFee);
+      finalFeeAmount = baseDoctorFee + surcharge;
+      resolvedMethodName = condRule.methodName;
+    }
   }
 
   return {
-    feeAmount,
+    feeAmount: finalFeeAmount,
     methodName: resolvedMethodName,
     patientCondition: condition,
     serviceType: (isVip ? 'VIP' : 'REGULER') as 'VIP' | 'REGULER',
-    ruleId: matchedRule?.id,
+    ruleId: specificDocMethodRule?.id,
   };
 }
 

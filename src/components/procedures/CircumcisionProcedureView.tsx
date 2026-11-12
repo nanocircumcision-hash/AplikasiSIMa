@@ -210,34 +210,66 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
     additionalNotes: selectedProc?.additionalNotes || '',
   });
 
-  // Estimasi Fee Dokter Operator berdasarkan Metode & Kondisi Kasus
+  // Estimasi Fee Dokter Operator berdasarkan Pengaturan Master Dokter & Metode Tindakan
   const estimatedDoctorFee = React.useMemo(() => {
     if (!selectedProc) return null;
     const isVip = selectedProc.categoryCode === 'VIP' || selectedProc.patientCategoryId === 2;
     const currentMethod = formData.methodType || selectedProc.methodType || '';
     const currentCond = formData.patientCondition || 'STANDAR';
 
-    const m = currentMethod.toLowerCase();
-    const matchRule = doctorMethodFees.find(r => {
-      const rm = (r.methodName || '').toLowerCase();
-      const matchName = rm === m || (m.includes('glans') && rm.includes('glans')) || (m.includes('nano') && rm.includes('nano')) || rm.includes(m) || m.includes(rm);
-      return matchName && r.patientCondition === currentCond;
-    }) || doctorMethodFees.find(r => {
-      const rm = (r.methodName || '').toLowerCase();
-      return (rm === m || (m.includes('glans') && rm.includes('glans')) || (m.includes('nano') && rm.includes('nano'))) && r.patientCondition === 'STANDAR';
-    });
+    // 1. Ambil data dokter yang ditugaskan dari Master Dokter
+    const assignedDoctor = doctors.find(d => d.id === selectedProc.doctorId);
 
-    const feeAmount = matchRule 
-      ? (isVip ? matchRule.vipFee : matchRule.regulerFee)
-      : (isVip ? 350000 : 250000);
+    // 2. Ambil tarif fee yang diatur di menu Dokter & Nakes
+    const docMasterVipFee = assignedDoctor?.vipFee !== undefined && assignedDoctor?.vipFee !== null
+      ? Number(assignedDoctor.vipFee)
+      : 350000;
+    const docMasterRegFee = assignedDoctor?.regulerFee !== undefined && assignedDoctor?.regulerFee !== null
+      ? Number(assignedDoctor.regulerFee)
+      : 250000;
+
+    // 3. Cek apakah ada custom rule per paket untuk dokter ini
+    const customPkgRule = assignedDoctor?.feeRules?.find(r => 
+      r.packageId === selectedProc.packageId && 
+      r.patientCategoryId === (isVip ? 2 : 1) && 
+      r.isActive
+    );
+
+    let baseDoctorFee = customPkgRule 
+      ? Number(customPkgRule.feeAmount) 
+      : (isVip ? docMasterVipFee : docMasterRegFee);
+
+    // 4. Tambahan jika ada kondisi kasus khusus (GEMUK, ABK, DEWASA)
+    let conditionSurcharge = 0;
+    if (currentCond !== 'STANDAR') {
+      const m = currentMethod.toLowerCase();
+      const matchCondRule = doctorMethodFees.find(r => {
+        const rm = (r.methodName || '').toLowerCase();
+        const matchName = rm === m || (m.includes('glans') && rm.includes('glans')) || (m.includes('nano') && rm.includes('nano')) || rm.includes(m) || m.includes(rm);
+        return matchName && r.patientCondition === currentCond;
+      });
+      const matchStandarRule = doctorMethodFees.find(r => {
+        const rm = (r.methodName || '').toLowerCase();
+        const matchName = rm === m || (m.includes('glans') && rm.includes('glans')) || (m.includes('nano') && rm.includes('nano')) || rm.includes(m) || m.includes(rm);
+        return matchName && r.patientCondition === 'STANDAR';
+      });
+      if (matchCondRule && matchStandarRule) {
+        const condFee = isVip ? matchCondRule.vipFee : matchCondRule.regulerFee;
+        const stdFee = isVip ? matchStandarRule.vipFee : matchStandarRule.regulerFee;
+        conditionSurcharge = Math.max(0, condFee - stdFee);
+      }
+    }
+
+    const finalFeeAmount = baseDoctorFee + conditionSurcharge;
 
     return {
-      feeAmount,
-      methodName: matchRule?.methodName || currentMethod,
+      feeAmount: finalFeeAmount,
+      methodName: currentMethod || 'Metode Khitan Modern',
       condition: currentCond,
       serviceType: isVip ? 'VIP' : 'REGULER',
+      doctorName: assignedDoctor?.name,
     };
-  }, [selectedProc, formData.methodType, formData.patientCondition, doctorMethodFees]);
+  }, [selectedProc, formData.methodType, formData.patientCondition, doctors, doctorMethodFees]);
 
   // Checklist state parser
   const parseChecklist = (raw?: any, status?: string): ProcedureChecklist => {
@@ -953,10 +985,10 @@ export const CircumcisionProcedureView: React.FC<CircumcisionProcedureViewProps>
                       </div>
                       <div>
                         <span className="font-bold text-emerald-950 block">
-                          Estimasi Fee Dokter Operator:
+                          Estimasi Fee Dokter Operator {estimatedDoctorFee.doctorName ? `(${estimatedDoctorFee.doctorName})` : ''}:
                         </span>
                         <span className="text-[10px] text-emerald-700">
-                          {estimatedDoctorFee.methodName} • {estimatedDoctorFee.condition} ({estimatedDoctorFee.serviceType})
+                          {estimatedDoctorFee.methodName} • {estimatedDoctorFee.condition} ({estimatedDoctorFee.serviceType}) • Sesuai Master Nakes
                         </span>
                       </div>
                     </div>

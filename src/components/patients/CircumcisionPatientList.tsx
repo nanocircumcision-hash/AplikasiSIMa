@@ -170,7 +170,7 @@ export const CircumcisionPatientList: React.FC<CircumcisionPatientListProps> = (
     plannedPackageCategory: 'REG',
     plannedDoctorId: doctors[0]?.id || 1,
     discountAmount: 0,
-    dpAmount: 500000,
+    dpAmount: 0,
     paymentMethod: 'TRANSFER' as 'TRANSFER' | 'QRIS' | 'CASH',
     patientSource: 'WhatsApp / Chat Pendaftaran',
     closingStaffId: '' as number | string,
@@ -540,7 +540,7 @@ export const CircumcisionPatientList: React.FC<CircumcisionPatientListProps> = (
         plannedPackageCategory: 'REG',
         plannedDoctorId: doctors[0]?.id || 1,
         discountAmount: 0,
-        dpAmount: 500000,
+        dpAmount: 0,
         paymentMethod: 'TRANSFER',
         patientSource: 'WhatsApp / Chat Pendaftaran',
         closingStaffId: '',
@@ -1452,7 +1452,7 @@ export const CircumcisionPatientList: React.FC<CircumcisionPatientListProps> = (
                             value={formData.dpAmount}
                             onChange={(e) => setFormData({ ...formData, dpAmount: Math.max(0, Number(e.target.value)) })}
                             className="w-full py-1.5 px-3 bg-white border border-indigo-200 rounded-xl text-xs font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500"
-                            placeholder="500000"
+                            placeholder="0"
                           />
                         </div>
                         <div>

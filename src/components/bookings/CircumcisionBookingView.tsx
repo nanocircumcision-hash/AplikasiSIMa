@@ -101,7 +101,7 @@ export const CircumcisionBookingView: React.FC = () => {
   const [bookingDate, setBookingDate] = useState<string>(todayStr);
   const [bookingTime, setBookingTime] = useState<string>('14:00');
   const [discountAmount, setDiscountAmount] = useState<number>(0);
-  const [dpAmount, setDpAmount] = useState<number>(500000);
+  const [dpAmount, setDpAmount] = useState<number>(0);
   const [paymentMethod, setPaymentMethod] = useState<'TRANSFER' | 'CASH' | 'QRIS'>('TRANSFER');
   const [patientSource, setPatientSource] = useState<string>('WhatsApp / Chat');
   const [closingStaffId, setClosingStaffId] = useState<number | string>('');
@@ -1277,7 +1277,7 @@ export const CircumcisionBookingView: React.FC = () => {
                       value={dpAmount}
                       onChange={(e) => setDpAmount(Math.max(0, Number(e.target.value)))}
                       className="w-full py-1.5 px-2 bg-white border border-sky-200 rounded-lg text-xs font-bold text-emerald-700 focus:ring-2 focus:ring-emerald-500"
-                      placeholder="500000"
+                      placeholder="0"
                     />
                   </div>
                   <div>
