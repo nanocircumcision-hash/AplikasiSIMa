@@ -175,7 +175,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     if (typeof window !== 'undefined') {
       try {
-        const saved = localStorage.getItem('clinic_user_session');
+        // Hapus session persisten dari localStorage agar saat browser baru dibuka SELALU tampil menu login (cegah bypass langsung ke dalam)
+        localStorage.removeItem('clinic_user_session');
+        // Hanya baca dari sessionStorage jika pengguna merefresh halaman di tab yang sedang aktif bekerja
+        const saved = sessionStorage.getItem('clinic_user_session');
         if (saved) return JSON.parse(saved);
       } catch {
         return null;
@@ -251,6 +254,27 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setToasts((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
+  // Selalu muat profil klinik dan logo manual langsung dari server saat aplikasi pertama kali dibuka
+  useEffect(() => {
+    fetch('/api/settings')
+      .then((r) => r.json())
+      .then((setRes) => {
+        if (setRes && (setRes.clinicName || setRes.logoUrl)) {
+          const localSavedLogo = typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : null;
+          const mergedLogo = setRes.logoUrl || localSavedLogo || null;
+          setSettings((prev) => ({
+            ...prev,
+            ...setRes,
+            logoUrl: mergedLogo,
+          }));
+          if (mergedLogo && typeof window !== 'undefined') {
+            localStorage.setItem('clinic_logo_url', mergedLogo);
+          }
+        }
+      })
+      .catch((err) => console.warn('Failed to load initial settings:', err));
+  }, []);
+
   const getHeaders = useCallback((branchOverride?: string) => {
     const effectiveBranch = 
       branchOverride || 
@@ -259,7 +283,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       (currentUser as any)?.activeBranch || 
       currentUser?.branchCode || 
       'PUSAT';
-    const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null;
+    const token = typeof window !== 'undefined' 
+      ? (sessionStorage.getItem('clinic_session_token') || localStorage.getItem('clinic_session_token')) 
+      : null;
     return {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -272,7 +298,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const refreshAllData = useCallback(async (branchOverride?: string) => {
     try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem('clinic_session_token') : null;
+      const token = typeof window !== 'undefined' 
+        ? (sessionStorage.getItem('clinic_session_token') || localStorage.getItem('clinic_session_token')) 
+        : null;
       if (!currentUser && !token) {
         setIsLoading(false);
         return;
@@ -397,6 +425,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCurrentUser(userObj);
 
       if (data.token && typeof window !== 'undefined') {
+        sessionStorage.setItem('clinic_session_token', data.token);
         localStorage.setItem('clinic_session_token', data.token);
       }
 
@@ -409,7 +438,10 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (typeof window !== 'undefined') {
         try {
-          localStorage.setItem('clinic_user_session', JSON.stringify(userObj));
+          // Simpan session pengguna hanya di sessionStorage (aktif selama tab browser terbuka)
+          sessionStorage.setItem('clinic_user_session', JSON.stringify(userObj));
+          // Hapus dari localStorage agar ketika browser ditutup dan dibuka ulang, SELALU tampil menu login (cegah bypass langsung ke dalam)
+          localStorage.removeItem('clinic_user_session');
         } catch {
           // ignore
         }
@@ -427,6 +459,8 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCurrentUser(null);
     if (typeof window !== 'undefined') {
       try {
+        sessionStorage.removeItem('clinic_user_session');
+        sessionStorage.removeItem('clinic_session_token');
         localStorage.removeItem('clinic_user_session');
         localStorage.removeItem('clinic_session_token');
       } catch {

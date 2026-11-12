@@ -106,21 +106,14 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar, onNavigate }) =
 
         <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => onNavigate('dashboard')}>
           <div className="p-1 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-center min-w-[36px] min-h-[36px]">
-            {settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') ? (
-              <img 
-                src={settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') || ''} 
-                alt="Logo" 
-                className="max-h-[30px] max-w-[80px] object-contain rounded"
-                onError={(e) => {
-                  e.currentTarget.style.display = 'none';
-                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (fallback) fallback.style.display = 'block';
-                }}
-              />
-            ) : null}
-            <div style={{ display: (settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '')) ? 'none' : 'block' }}>
-              <NanoAppIcon size={28} className="shrink-0" />
-            </div>
+            <img 
+              src={settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') || '/branding/logo-nano-circumcision.png'} 
+              alt="Logo Resmi Klinik" 
+              className="max-h-[32px] max-w-[80px] object-contain rounded drop-shadow-xs"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = '/branding/logo-nano-circumcision.png';
+              }}
+            />
           </div>
           <div>
             <h1 className="text-sm sm:text-base font-bold text-slate-900 tracking-tight leading-tight">

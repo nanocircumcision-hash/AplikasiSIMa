@@ -76,10 +76,10 @@ export const EmployeeListView: React.FC = () => {
       phone: emp.phone || '',
       email: emp.email || '',
       startDate: emp.startDate || new Date().toISOString().split('T')[0],
-      basicSalary: emp.basicSalary || 0,
-      defaultPatientFee: emp.defaultPatientFee || 0,
-      closingFeePerPatient: emp.closingFeePerPatient ?? 50000,
-      overtimeHourlyRate: emp.overtimeHourlyRate ?? 25000,
+      basicSalary: emp.basicSalary !== undefined ? emp.basicSalary : 0,
+      defaultPatientFee: emp.defaultPatientFee !== undefined && emp.defaultPatientFee !== null ? emp.defaultPatientFee : 0,
+      closingFeePerPatient: emp.closingFeePerPatient !== undefined && emp.closingFeePerPatient !== null ? emp.closingFeePerPatient : 0,
+      overtimeHourlyRate: emp.overtimeHourlyRate !== undefined && emp.overtimeHourlyRate !== null ? emp.overtimeHourlyRate : 0,
       notes: emp.notes || '',
     });
     setIsModalOpen(true);

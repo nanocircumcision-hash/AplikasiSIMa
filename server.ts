@@ -2433,6 +2433,21 @@ app.put('/api/settings', requireAuth, async (req: AuthRequest, res) => {
     await db.update(clinicSettings)
       .set({ ...data, updatedAt: new Date() })
       .where(eq(clinicSettings.id, 1));
+
+    // Jika ada update logo manual (base64 data URL), sinkronkan ke file branding statis
+    if (data.logoUrl && typeof data.logoUrl === 'string' && data.logoUrl.startsWith('data:image')) {
+      try {
+        const base64Data = data.logoUrl.split(',')[1];
+        if (base64Data) {
+          const buffer = Buffer.from(base64Data, 'base64');
+          fs.writeFileSync('public/branding/logo-nano-circumcision.png', buffer);
+          fs.writeFileSync('public/branding/nano-app-icon.png', buffer);
+        }
+      } catch (fsErr) {
+        console.warn('Gagal menyinkronkan logo manual ke file statis:', fsErr);
+      }
+    }
+
     await recordAudit('UPDATE', 'CLINIC_SETTINGS', '1', req.user?.email || 'Admin', 'Pembaruan profil klinik');
     res.json({ success: true });
   } catch (err: any) {
@@ -4817,9 +4832,9 @@ app.post('/api/employees', requireAuth, async (req: AuthRequest, res) => {
       email: email || '',
       startDate: startDate || new Date().toISOString().split('T')[0],
       basicSalary: Number(basicSalary || 0),
-      defaultPatientFee: Number(defaultPatientFee || 20000),
-      closingFeePerPatient: Number(closingFeePerPatient !== undefined ? closingFeePerPatient : 25000),
-      overtimeHourlyRate: Number(overtimeHourlyRate !== undefined ? overtimeHourlyRate : 35000),
+      defaultPatientFee: Number(defaultPatientFee !== undefined ? defaultPatientFee : 0),
+      closingFeePerPatient: Number(closingFeePerPatient !== undefined ? closingFeePerPatient : 0),
+      overtimeHourlyRate: Number(overtimeHourlyRate !== undefined ? overtimeHourlyRate : 0),
       branchCode: targetBranch,
       isActive: isActive !== undefined ? Boolean(isActive) : true,
       notes: notes || '',
@@ -4851,9 +4866,9 @@ app.post('/api/employees', requireAuth, async (req: AuthRequest, res) => {
             [
               code, name.trim(), position || 'Perawat Khitan', description || '', phone || '', email || '',
               startDate || new Date().toISOString().split('T')[0],
-              Number(basicSalary || 0), Number(defaultPatientFee || 20000),
-              Number(closingFeePerPatient !== undefined ? closingFeePerPatient : 25000),
-              Number(overtimeHourlyRate !== undefined ? overtimeHourlyRate : 35000),
+              Number(basicSalary || 0), Number(defaultPatientFee !== undefined ? defaultPatientFee : 0),
+              Number(closingFeePerPatient !== undefined ? closingFeePerPatient : 0),
+              Number(overtimeHourlyRate !== undefined ? overtimeHourlyRate : 0),
               targetBranch,
               isActive !== undefined ? Boolean(isActive) : true,
               notes || ''
@@ -4885,9 +4900,9 @@ app.post('/api/employees', requireAuth, async (req: AuthRequest, res) => {
             [
               code, name.trim(), position || 'Perawat Khitan', description || '', phone || '', email || '',
               startDate || new Date().toISOString().split('T')[0],
-              Number(basicSalary || 0), Number(defaultPatientFee || 20000),
-              Number(closingFeePerPatient !== undefined ? closingFeePerPatient : 25000),
-              Number(overtimeHourlyRate !== undefined ? overtimeHourlyRate : 35000),
+              Number(basicSalary || 0), Number(defaultPatientFee !== undefined ? defaultPatientFee : 0),
+              Number(closingFeePerPatient !== undefined ? closingFeePerPatient : 0),
+              Number(overtimeHourlyRate !== undefined ? overtimeHourlyRate : 0),
               isActive !== undefined ? Boolean(isActive) : true,
               notes || ''
             ]
@@ -5254,9 +5269,9 @@ app.post('/api/payrolls/generate', requireAuth, async (req: AuthRequest, res) =>
 
       const ratePerClosing = closingFeePerPatient !== undefined && targetEmployees.length === 1
         ? Math.max(0, Number(closingFeePerPatient))
-        : (existing.length > 0 && existing[0].closingFeePerPatient > 0 
-            ? existing[0].closingFeePerPatient 
-            : (emp.closingFeePerPatient || 25000));
+        : (emp.closingFeePerPatient !== undefined && emp.closingFeePerPatient !== null
+            ? Number(emp.closingFeePerPatient)
+            : (existing.length > 0 ? (existing[0].closingFeePerPatient ?? 0) : 0));
       const closingFeeTotal = calculatedClosingCount * ratePerClosing;
 
       // Calculate Fee Lembur (Overtime) per Jam
@@ -5266,9 +5281,9 @@ app.post('/api/payrolls/generate', requireAuth, async (req: AuthRequest, res) =>
 
       const ratePerOvertimeHour = overtimeHourlyRate !== undefined && targetEmployees.length === 1
         ? Math.max(0, Number(overtimeHourlyRate))
-        : (existing.length > 0 && existing[0].overtimeHourlyRate > 0 
-            ? existing[0].overtimeHourlyRate 
-            : (emp.overtimeHourlyRate || 35000));
+        : (emp.overtimeHourlyRate !== undefined && emp.overtimeHourlyRate !== null
+            ? Number(emp.overtimeHourlyRate)
+            : (existing.length > 0 ? (existing[0].overtimeHourlyRate ?? 0) : 0));
       const overtimeTotal = calculatedOvertimeHours * ratePerOvertimeHour;
 
       // Base salary, bonus, deductions
@@ -7278,7 +7293,7 @@ app.post('/api/procedures/:id/complete', requireAuth, async (req: AuthRequest, r
             eq(employeeFeeRules.isActive, true)
           ));
         
-        const finalEmpFee = empRules.length > 0 ? empRules[0].feeAmount : (astEmp.defaultPatientFee || 25000);
+        const finalEmpFee = empRules.length > 0 ? empRules[0].feeAmount : (astEmp.defaultPatientFee !== undefined && astEmp.defaultPatientFee !== null ? Number(astEmp.defaultPatientFee) : 0);
         const empFeeNum = await generateEmployeeFeeNumber();
 
         await db.insert(employeeFeeTransactions).values({

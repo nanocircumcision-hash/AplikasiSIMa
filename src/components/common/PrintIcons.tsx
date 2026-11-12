@@ -12,16 +12,18 @@ export interface IconProps {
 /**
  * Nano Circumcision Official App Icon (Mascot & Roadster with NANO)
  */
-export const NanoAppIcon: React.FC<IconProps> = ({ size = 32, className = '', alt = 'Nano Circumcision App Icon' }) => {
+export const NanoAppIcon: React.FC<IconProps> = ({ size = 32, className = '', alt = 'Nano Circumcision App Icon', src }) => {
+  const localLogo = typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : null;
+  const resolvedSrc = src || localLogo || '/branding/nano-app-icon.png';
   return (
     <img
-      src="/branding/nano-app-icon.svg"
+      src={resolvedSrc}
       alt={alt}
       width={size}
       height={size}
-      className={`inline-block object-contain select-none ${className}`}
+      className={`inline-block object-contain select-none rounded-lg ${className}`}
       onError={(e) => {
-        // Fallback to PNG if SVG encounters any issues
+        // Fallback to PNG
         (e.target as HTMLImageElement).src = '/branding/nano-app-icon.png';
       }}
     />

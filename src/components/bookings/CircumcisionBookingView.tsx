@@ -1364,7 +1364,7 @@ export const CircumcisionBookingView: React.FC = () => {
                     <option value="">-- Pilih Karyawan Penerima Fee Closing --</option>
                     {employees.filter(e => e.isActive && !e.isDeleted).map((emp) => (
                       <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.position || 'Staf'}) — Rp {(emp.closingFeePerPatient || 30000).toLocaleString('id-ID')}
+                        {emp.name} ({emp.position || 'Staf'}) — Rp {(emp.closingFeePerPatient !== undefined && emp.closingFeePerPatient !== null ? emp.closingFeePerPatient : 0).toLocaleString('id-ID')}
                       </option>
                     ))}
                   </select>
@@ -1587,7 +1587,7 @@ export const CircumcisionBookingView: React.FC = () => {
                       <option value="">-- Pilih Staf Penerima Fee Closing --</option>
                       {employees.filter(e => e.isActive && !e.isDeleted).map((emp) => (
                         <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.position || 'Staf'}) — Rp {(emp.closingFeePerPatient || 30000).toLocaleString('id-ID')}
+                          {emp.name} ({emp.position || 'Staf'}) — Rp {(emp.closingFeePerPatient !== undefined && emp.closingFeePerPatient !== null ? emp.closingFeePerPatient : 0).toLocaleString('id-ID')}
                         </option>
                       ))}
                     </select>

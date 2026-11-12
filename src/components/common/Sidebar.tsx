@@ -279,21 +279,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="h-16 lg:hidden flex items-center px-4 border-b border-slate-100 shrink-0 justify-between bg-white">
           <div className="flex items-center gap-2.5">
             <div className="p-1 rounded-xl bg-slate-50 border border-slate-200/70 flex items-center justify-center min-w-[36px] min-h-[36px]">
-              {settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') ? (
-                <img 
-                  src={settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') || ''} 
-                  alt="Logo" 
-                  className="max-h-[30px] max-w-[70px] object-contain rounded"
-                  onError={(e) => {
-                    e.currentTarget.style.display = 'none';
-                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                    if (fallback) fallback.style.display = 'block';
-                  }}
-                />
-              ) : null}
-              <div style={{ display: (settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '')) ? 'none' : 'block' }}>
-                <NanoAppIcon size={30} className="shrink-0" />
-              </div>
+              <img 
+                src={settings.logoUrl || (typeof window !== 'undefined' ? localStorage.getItem('clinic_logo_url') : '') || '/branding/logo-nano-circumcision.png'} 
+                alt="Logo Resmi Klinik" 
+                className="max-h-[32px] max-w-[75px] object-contain rounded drop-shadow-xs"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = '/branding/logo-nano-circumcision.png';
+                }}
+              />
             </div>
             <div>
               <span className="font-bold tracking-tight text-slate-900 text-xs block leading-none">

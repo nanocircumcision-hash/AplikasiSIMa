@@ -151,9 +151,9 @@ export const PayrollView: React.FC = () => {
           periodMonth: generateForm.periodMonth,
           employeeId: empId,
           closingPatientCount: Number(generateForm.closingPatientCount) || 0,
-          closingFeePerPatient: Number(generateForm.closingFeePerPatient) || 50000,
+          closingFeePerPatient: generateForm.closingFeePerPatient !== undefined && generateForm.closingFeePerPatient !== '' ? Math.max(0, Number(generateForm.closingFeePerPatient)) : 0,
           overtimeHours: Number(generateForm.overtimeHours) || 0,
-          overtimeHourlyRate: Number(generateForm.overtimeHourlyRate) || 25000,
+          overtimeHourlyRate: generateForm.overtimeHourlyRate !== undefined && generateForm.overtimeHourlyRate !== '' ? Math.max(0, Number(generateForm.overtimeHourlyRate)) : 0,
           bonusAmount: Number(generateForm.bonusAmount) || 0,
           deductionAmount: Number(generateForm.deductionAmount) || 0,
           paymentMethod: generateForm.paymentMethod,
@@ -178,11 +178,11 @@ export const PayrollView: React.FC = () => {
     }
     setEditingPayroll(item);
     setEditForm({
-      basicSalary: item.basicSalary || 0,
+      basicSalary: item.basicSalary !== undefined ? item.basicSalary : 0,
       closingPatientCount: item.closingPatientCount || 0,
-      closingFeePerPatient: item.closingFeePerPatient || 50000,
+      closingFeePerPatient: item.closingFeePerPatient !== undefined && item.closingFeePerPatient !== null ? item.closingFeePerPatient : 0,
       overtimeHours: item.overtimeHours || 0,
-      overtimeHourlyRate: item.overtimeHourlyRate || 25000,
+      overtimeHourlyRate: item.overtimeHourlyRate !== undefined && item.overtimeHourlyRate !== null ? item.overtimeHourlyRate : 0,
       bonusAmount: item.bonusAmount || 0,
       deductionAmount: item.deductionAmount || 0,
       paymentMethod: item.paymentMethod || 'TRANSFER',
@@ -635,13 +635,13 @@ export const PayrollView: React.FC = () => {
                     <td className="py-2.5 px-3 text-right">
                       <div className="font-bold text-amber-600 text-xs">{formatRupiah(item.closingFeeTotal || 0)}</div>
                       <div className="text-[10px] text-slate-400">
-                        {item.closingPatientCount || 0} pasien @ {formatRupiah(item.closingFeePerPatient || 50000)}
+                        {item.closingPatientCount || 0} pasien @ {formatRupiah(item.closingFeePerPatient !== undefined && item.closingFeePerPatient !== null ? item.closingFeePerPatient : 0)}
                       </div>
                     </td>
                     <td className="py-2.5 px-3 text-right">
                       <div className="font-bold text-purple-700 text-xs">{formatRupiah(item.overtimeTotal || 0)}</div>
                       <div className="text-[10px] text-slate-400">
-                        {item.overtimeHours || 0} jam @ {formatRupiah(item.overtimeHourlyRate || 25000)}/jam
+                        {item.overtimeHours || 0} jam @ {formatRupiah(item.overtimeHourlyRate !== undefined && item.overtimeHourlyRate !== null ? item.overtimeHourlyRate : 0)}/jam
                       </div>
                     </td>
                     <td className="py-2.5 px-3 text-right text-xs">
@@ -764,8 +764,8 @@ export const PayrollView: React.FC = () => {
                         if (found) {
                           setGenerateForm(prev => ({
                             ...prev,
-                            closingFeePerPatient: found.closingFeePerPatient || 50000,
-                            overtimeHourlyRate: found.overtimeHourlyRate || 25000,
+                            closingFeePerPatient: found.closingFeePerPatient !== undefined && found.closingFeePerPatient !== null ? found.closingFeePerPatient : 0,
+                            overtimeHourlyRate: found.overtimeHourlyRate !== undefined && found.overtimeHourlyRate !== null ? found.overtimeHourlyRate : 0,
                           }));
                         }
                       }
@@ -1410,7 +1410,7 @@ export const PayrollView: React.FC = () => {
                             Fee Closing Pasien (Daftar Langsung ke Klinik)
                           </span>
                           <span className="text-[11px] text-slate-500 block">
-                            Jumlah: <strong>{selectedPayroll.closingPatientCount || 0} Pasien</strong> @ {formatRupiah(selectedPayroll.closingFeePerPatient || 50000)}
+                            Jumlah: <strong>{selectedPayroll.closingPatientCount || 0} Pasien</strong> @ {formatRupiah(selectedPayroll.closingFeePerPatient !== undefined && selectedPayroll.closingFeePerPatient !== null ? selectedPayroll.closingFeePerPatient : 0)}
                           </span>
                         </div>
                         <span className="font-bold text-amber-600 self-center font-mono">
@@ -1428,7 +1428,7 @@ export const PayrollView: React.FC = () => {
                             Fee Lembur Karyawan
                           </span>
                           <span className="text-[11px] text-slate-500 block">
-                            Jumlah: <strong>{selectedPayroll.overtimeHours || 0} Jam</strong> @ {formatRupiah(selectedPayroll.overtimeHourlyRate || 25000)} / Jam
+                            Jumlah: <strong>{selectedPayroll.overtimeHours || 0} Jam</strong> @ {formatRupiah(selectedPayroll.overtimeHourlyRate !== undefined && selectedPayroll.overtimeHourlyRate !== null ? selectedPayroll.overtimeHourlyRate : 0)} / Jam
                           </span>
                         </div>
                         <span className="font-bold text-purple-700 self-center font-mono">

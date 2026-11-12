@@ -92,6 +92,7 @@ export const DoctorsAndStaffTab: React.FC = () => {
     vipFee?: number;
     closingFee?: number;
     overtimeRate?: number;
+    defaultPatientFee?: number;
     basicSalary?: number;
     raw: Doctor | Employee;
   }
@@ -128,8 +129,9 @@ export const DoctorsAndStaffTab: React.FC = () => {
       description: e.description || '',
       notes: e.notes || '',
       isActive: e.isActive,
-      closingFee: e.closingFeePerPatient,
-      overtimeRate: e.overtimeHourlyRate,
+      closingFee: e.closingFeePerPatient !== undefined && e.closingFeePerPatient !== null ? Number(e.closingFeePerPatient) : 0,
+      overtimeRate: e.overtimeHourlyRate !== undefined && e.overtimeHourlyRate !== null ? Number(e.overtimeHourlyRate) : 0,
+      defaultPatientFee: e.defaultPatientFee !== undefined && e.defaultPatientFee !== null ? Number(e.defaultPatientFee) : 0,
       basicSalary: e.basicSalary,
       raw: e,
     }))
@@ -243,10 +245,10 @@ export const DoctorsAndStaffTab: React.FC = () => {
         notes: emp.notes || '',
         regulerFee: 0,
         vipFee: 0,
-        basicSalary: emp.basicSalary || 3500000,
-        closingFeePerPatient: emp.closingFeePerPatient ?? 50000,
-        overtimeHourlyRate: emp.overtimeHourlyRate ?? 25000,
-        defaultPatientFee: emp.defaultPatientFee ?? 25000,
+        basicSalary: emp.basicSalary !== undefined && emp.basicSalary !== null ? Number(emp.basicSalary) : 3500000,
+        closingFeePerPatient: emp.closingFeePerPatient !== undefined && emp.closingFeePerPatient !== null ? Number(emp.closingFeePerPatient) : 0,
+        overtimeHourlyRate: emp.overtimeHourlyRate !== undefined && emp.overtimeHourlyRate !== null ? Number(emp.overtimeHourlyRate) : 0,
+        defaultPatientFee: emp.defaultPatientFee !== undefined && emp.defaultPatientFee !== null ? Number(emp.defaultPatientFee) : 0,
         isActive: emp.isActive,
       });
     }
@@ -307,9 +309,9 @@ export const DoctorsAndStaffTab: React.FC = () => {
         description: formData.description,
         notes: formData.notes,
         basicSalary: Number(formData.basicSalary) || 0,
-        closingFeePerPatient: Number(formData.closingFeePerPatient) || 0,
-        overtimeHourlyRate: Number(formData.overtimeHourlyRate) || 0,
-        defaultPatientFee: Number(formData.defaultPatientFee) || 0,
+        closingFeePerPatient: formData.closingFeePerPatient !== undefined && formData.closingFeePerPatient !== '' ? Math.max(0, Number(formData.closingFeePerPatient)) : 0,
+        overtimeHourlyRate: formData.overtimeHourlyRate !== undefined && formData.overtimeHourlyRate !== '' ? Math.max(0, Number(formData.overtimeHourlyRate)) : 0,
+        defaultPatientFee: formData.defaultPatientFee !== undefined && formData.defaultPatientFee !== '' ? Math.max(0, Number(formData.defaultPatientFee)) : 0,
         isActive: formData.isActive,
       };
 
@@ -653,21 +655,29 @@ export const DoctorsAndStaffTab: React.FC = () => {
                     </div>
                   )}
                   {person.type === 'STAFF' && (
-                    <div className="space-y-1 pt-1 border-t border-dashed border-slate-200">
+                    <div className="space-y-1.5 pt-1 border-t border-dashed border-slate-200">
+                      <div className="flex justify-between items-center text-[11px]">
+                        <span className="text-emerald-800 font-semibold flex items-center gap-1">
+                          <Stethoscope className="w-3 h-3 text-emerald-600" /> Fee Pasien Tindakan:
+                        </span>
+                        <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/60 font-mono">
+                          {formatRupiah(person.defaultPatientFee !== undefined && person.defaultPatientFee !== null ? person.defaultPatientFee : 0)} / pasien
+                        </span>
+                      </div>
                       <div className="flex justify-between items-center text-[11px]">
                         <span className="text-amber-800 font-semibold flex items-center gap-1">
                           <UserCheck className="w-3 h-3 text-amber-600" /> Fee Closing:
                         </span>
-                        <span className="font-bold text-amber-700">
-                          {formatRupiah(person.closingFee || 50000)} / pasien
+                        <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded border border-amber-200/60 font-mono">
+                          {formatRupiah(person.closingFee !== undefined && person.closingFee !== null ? person.closingFee : 0)} / pasien
                         </span>
                       </div>
                       <div className="flex justify-between items-center text-[11px]">
                         <span className="text-purple-800 font-semibold flex items-center gap-1">
                           <Clock className="w-3 h-3 text-purple-600" /> Fee Lembur:
                         </span>
-                        <span className="font-bold text-purple-700">
-                          {formatRupiah(person.overtimeRate || 25000)} / jam
+                        <span className="font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded border border-purple-200/60 font-mono">
+                          {formatRupiah(person.overtimeRate !== undefined && person.overtimeRate !== null ? person.overtimeRate : 0)} / jam
                         </span>
                       </div>
                     </div>
@@ -1013,22 +1023,42 @@ export const DoctorsAndStaffTab: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Fee Closing & Fee Lembur Rates */}
-                  <div className="p-3 bg-gradient-to-r from-amber-50 to-purple-50 rounded-2xl border border-amber-200/60 space-y-2">
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-900 block">
-                      Tarif Bonus & Lembur Karyawan:
-                    </span>
-                    <div className="grid grid-cols-2 gap-2">
+                  {/* Fee Pasien Tindakan, Fee Closing & Fee Lembur Rates */}
+                  <div className="p-3 bg-gradient-to-r from-emerald-50 via-amber-50 to-purple-50 rounded-2xl border border-emerald-200/60 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-800 block">
+                        Tarif Komisi & Lembur Karyawan:
+                      </span>
+                      <span className="text-[9px] font-bold text-slate-500 bg-white px-2 py-0.5 rounded-full border border-slate-200">
+                        Bisa diisi 0 jika tidak ada
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-bold text-emerald-800 mb-0.5">
+                          Fee Tindakan (Rp / Pasien):
+                        </label>
+                        <input
+                          type="number"
+                          min="0"
+                          value={formData.defaultPatientFee}
+                          onChange={(e) => setFormData({ ...formData, defaultPatientFee: Number(e.target.value) })}
+                          className="w-full py-1.5 px-2.5 bg-white border border-emerald-300 rounded-lg text-xs font-bold text-emerald-800 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                        />
+                        <span className="text-[9px] text-emerald-600 block mt-0.5">Asisten medis tindakan</span>
+                      </div>
                       <div>
                         <label className="block text-[10px] font-bold text-amber-800 mb-0.5">
                           Fee Closing Pasien (Rp / Pasien):
                         </label>
                         <input
                           type="number"
+                          min="0"
                           value={formData.closingFeePerPatient}
                           onChange={(e) => setFormData({ ...formData, closingFeePerPatient: Number(e.target.value) })}
-                          className="w-full py-1.5 px-2.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-amber-800"
+                          className="w-full py-1.5 px-2.5 bg-white border border-amber-300 rounded-lg text-xs font-bold text-amber-800 focus:outline-none focus:ring-1 focus:ring-amber-500"
                         />
+                        <span className="text-[9px] text-amber-600 block mt-0.5">Pendaftaran front-office</span>
                       </div>
                       <div>
                         <label className="block text-[10px] font-bold text-purple-800 mb-0.5">
@@ -1036,10 +1066,12 @@ export const DoctorsAndStaffTab: React.FC = () => {
                         </label>
                         <input
                           type="number"
+                          min="0"
                           value={formData.overtimeHourlyRate}
                           onChange={(e) => setFormData({ ...formData, overtimeHourlyRate: Number(e.target.value) })}
-                          className="w-full py-1.5 px-2.5 bg-white border border-purple-300 rounded-lg text-xs font-bold text-purple-800"
+                          className="w-full py-1.5 px-2.5 bg-white border border-purple-300 rounded-lg text-xs font-bold text-purple-800 focus:outline-none focus:ring-1 focus:ring-purple-500"
                         />
+                        <span className="text-[9px] text-purple-600 block mt-0.5">Lembur per jam kerja</span>
                       </div>
                     </div>
                   </div>
